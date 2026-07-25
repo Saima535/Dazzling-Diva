@@ -40,6 +40,8 @@ const productSchema = new Schema(
     heroImageUrl: { type: String, default: "" },
     gallery: [{ url: String, alt: String }],
     variants: { type: [variantSchema], default: [] },
+    publishAt: { type: Date, default: null },
+    unpublishAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

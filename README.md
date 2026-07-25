@@ -19,6 +19,7 @@ Dazzling Diva is a dual-application fashion ecommerce platform. `Admin` is the p
 - Cookie-backed guest cart with server-side checkout submission
 - Customer account registration/login and account-linked order history
 - Media upload, replace, search/filter, and delete workflows backed by signed server-side Cloudinary requests
+- Transactional checkout orchestration with MongoDB sessions, atomic stock decrements, coupon application inside the transaction, duplicate-request recovery via idempotency keys, and safe failure when MongoDB transactions are unavailable
 
 ## Environment
 
@@ -87,6 +88,8 @@ The script prompts for name, email, and password, then writes the admin user to 
 
 ```bash
 cd Admin
+npm run test:integration
+npm run test:e2e
 npm run typecheck
 npm run lint
 npm test
@@ -97,11 +100,51 @@ npm run build
 
 ```bash
 cd Client
+npm run test:integration
+npm run test:e2e
 npm run typecheck
 npm run lint
 npm test
 npm run build
 ```
+
+## Checkout Robustness
+
+- `Admin/src/modules/orders/service.ts` places orders inside a MongoDB transaction and fails safely with a configuration error if the deployment does not support transactions.
+- Variant stock is decremented with an atomic `$elemMatch` update so concurrent requests cannot oversell the same variant.
+- Orders now use a database-enforced idempotency key index and duplicate-key recovery so repeated submissions return the existing order instead of creating a second one.
+- The storefront checkout action sends a fresh idempotency key for each submission attempt.
+- Published product windows are enforced during checkout through the same server-side filter used for catalog visibility.
+
+## Testing Matrix
+
+- `Admin` unit and contract tests cover coupon math, slug normalization, Mongo-backed rate-limit expiry, checkout schema validation, publish-window checkout filtering, duplicate-key detection, and OpenAPI route contract smoke coverage.
+- `Client` tests cover money formatting, customer session cookie naming, checkout request contract behavior, backend error propagation, and a repo-local order-placement plus order-tracking API smoke flow.
+- `npm run test:integration` exists in both apps for higher-value contract/integration checks.
+- `npm run test:e2e` exists in both apps for repo-local API/contract smoke tests.
+- Browser-driven E2E automation with Playwright or similar is still not present in this repository.
+
+## Verification Report
+
+Verified on Saturday, July 25, 2026.
+
+### Admin
+
+- `npm run test:integration`: passed
+- `npm run test:e2e`: passed
+- `npm test`: passed
+- `npm run lint`: passed
+- `npm run typecheck`: passed
+- `npm run build`: passed
+
+### Client
+
+- `npm run test:integration`: passed
+- `npm run test:e2e`: passed
+- `npm test`: passed
+- `npm run lint`: passed
+- `npm run typecheck`: passed
+- `npm run build`: passed
 
 ## Security Notes
 
@@ -118,4 +161,6 @@ npm run build
 
 ## Current Limitations
 
-- The original brief still asked for a deeper finish than the current codebase provides. Remaining gaps include full refresh-token family rotation and reuse detection, end-to-end CSRF wiring, deeper RBAC policy coverage, full transactional checkout orchestration, full edit/archive/publish-scheduling CRUD across domains, broader operational consoles, and the requested integration/E2E test matrix.
+- The checkout path now depends on MongoDB transaction support; production deployments must use a replica set or Atlas cluster.
+- The added `test:e2e` scripts are repository-local contract smoke tests, not full browser automation.
+- The wider original brief still asked for deeper security and operations coverage than is verified here, including fuller CSRF wiring, deeper RBAC policy coverage, and broader browser-level end-to-end coverage.

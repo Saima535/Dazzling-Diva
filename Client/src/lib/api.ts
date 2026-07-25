@@ -160,6 +160,7 @@ export async function createOrder(payload: {
   district: string;
   shippingMethodCode: string;
   couponCode?: string;
+  idempotencyKey?: string;
   items: { productSlug: string; sku: string; quantity: number }[];
 }, token?: string | null) {
   return apiFetch<{ orderNumber: string }>("/checkout/orders", {

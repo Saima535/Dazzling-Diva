@@ -8,7 +8,10 @@ export async function POST(request: Request) {
     assertAllowedOrigin(request);
     await checkRateLimit("customer-register", 10, 60_000);
     const body = await request.json();
-    const result = await registerCustomer(body);
+    const result = await registerCustomer(
+      body,
+      request.headers.get("user-agent") ?? "",
+    );
     return ok(result);
   } catch (error) {
     return fail(error instanceof Error ? error.message : "Unable to register.", 400);

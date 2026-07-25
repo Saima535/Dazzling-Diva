@@ -10,6 +10,8 @@ export async function GET() {
       "GET /api/v1/content/pages",
       "POST /api/v1/customers/register",
       "POST /api/v1/customers/login",
+      "POST /api/v1/customers/refresh",
+      "POST /api/v1/customers/logout",
       "GET /api/v1/customers/me",
       "GET /api/v1/customers/orders",
       "GET /api/v1/customers/reviews",

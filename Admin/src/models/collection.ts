@@ -11,6 +11,8 @@ const collectionSchema = new Schema(
       default: "draft",
     },
     coverImageUrl: { type: String, default: "" },
+    publishAt: { type: Date, default: null },
+    unpublishAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

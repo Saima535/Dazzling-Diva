@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 
 import { ProductCard } from "@/src/components/product-card";
-import { getCustomerToken } from "@/src/lib/customer-session";
+import { getCustomerAccessToken } from "@/src/lib/customer-session";
 import { getWishlist } from "@/src/lib/api";
 
 export default async function WishlistPage() {
-  const token = await getCustomerToken();
+  const token = await getCustomerAccessToken();
   if (!token) {
     redirect("/account/login");
   }

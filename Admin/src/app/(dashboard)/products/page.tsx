@@ -3,7 +3,7 @@ import { CategoryModel } from "@/models/category";
 import { CollectionModel } from "@/models/collection";
 import { ProductModel } from "@/models/product";
 
-import { createProductAction } from "../actions";
+import { createProductAction, updateProductAction } from "../actions";
 
 type DashboardProduct = {
   _id: string;
@@ -54,6 +54,8 @@ export default async function ProductsPage() {
           <input name="variantPriceMinor" placeholder="Price in minor units (e.g. 125000)" required />
           <input name="variantCompareAtPriceMinor" placeholder="Compare at price in minor units" defaultValue="0" />
           <input name="variantStockQuantity" placeholder="Stock quantity" required />
+          <input name="publishAt" type="datetime-local" />
+          <input name="unpublishAt" type="datetime-local" />
           <select name="status" defaultValue="draft">
             <option value="draft">Draft</option>
             <option value="published">Published</option>
@@ -78,19 +80,59 @@ export default async function ProductsPage() {
               key={String(product._id)}
               className="rounded-2xl border border-white/10 bg-black/25 p-4"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-medium">{product.name}</h3>
-                  <p className="text-sm text-white/55">/{product.slug}</p>
-                  <p className="mt-2 text-sm text-white/70">
-                    {product.variants[0]?.sku ?? "No SKU"} ·{" "}
-                    {product.variants[0]?.stockQuantity ?? 0} in stock
-                  </p>
+              <form action={updateProductAction} className="grid gap-3">
+                <input type="hidden" name="productId" value={String(product._id)} />
+                <input name="name" defaultValue={product.name} />
+                <div className="grid gap-3 md:grid-cols-3">
+                  <input name="variantSku" defaultValue={product.variants[0]?.sku ?? ""} />
+                  <input name="variantStockQuantity" defaultValue={product.variants[0]?.stockQuantity ?? 0} />
+                  <select name="status" defaultValue={product.status}>
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                    <option value="archived">Archived</option>
+                  </select>
                 </div>
-                <span className="text-xs uppercase tracking-[0.25em] text-white/45">
-                  {product.status}
-                </span>
-              </div>
+                <input name="shortDescription" placeholder="Short description" defaultValue="" />
+                <textarea name="description" rows={3} placeholder="Description" />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input name="material" placeholder="Material" />
+                  <input name="careInstructions" placeholder="Care instructions" />
+                </div>
+                <input name="heroImageUrl" placeholder="Hero image URL" />
+                <select name="categoryId" defaultValue="">
+                  <option value="">No category yet</option>
+                  {categories.map((category) => (
+                    <option key={String(category._id)} value={String(category._id)}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <select multiple className="min-h-20" name="collectionIds">
+                  {collections.map((collection) => (
+                    <option key={String(collection._id)} value={String(collection._id)}>
+                      {collection.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <input name="variantSize" placeholder="Size" defaultValue="Free Size" />
+                  <input name="variantColor" placeholder="Color" defaultValue="Default" />
+                  <input name="variantPriceMinor" placeholder="Price" defaultValue={0} />
+                  <input name="variantCompareAtPriceMinor" placeholder="Compare" defaultValue={0} />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input name="publishAt" type="datetime-local" />
+                  <input name="unpublishAt" type="datetime-local" />
+                </div>
+                <div className="flex items-center gap-6 text-sm text-white/75">
+                  <label><input className="mr-2 w-auto" type="checkbox" name="featured" />Featured</label>
+                  <label><input className="mr-2 w-auto" type="checkbox" name="newArrival" />New arrival</label>
+                  <label><input className="mr-2 w-auto" type="checkbox" name="mostLoved" />Most loved</label>
+                </div>
+                <button className="w-fit rounded-full border border-white/10 px-4 py-2 text-xs">
+                  Update product
+                </button>
+              </form>
             </article>
           ))}
           {!products.length && (

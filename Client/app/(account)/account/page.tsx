@@ -3,10 +3,10 @@ import { redirect } from "next/navigation";
 
 import { LogoutButton } from "@/src/components/logout-button";
 import { getCustomerMe } from "@/src/lib/api";
-import { getCustomerToken } from "@/src/lib/customer-session";
+import { getCustomerAccessToken } from "@/src/lib/customer-session";
 
 export default async function AccountPage() {
-  const token = await getCustomerToken();
+  const token = await getCustomerAccessToken();
   if (!token) {
     redirect("/account/login");
   }

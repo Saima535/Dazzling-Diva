@@ -12,8 +12,8 @@
 
 - Admin dev: `cd Admin && npm run dev`
 - Client dev: `cd Client && npm run dev`
-- Admin quality: `cd Admin && npm run lint && npm run typecheck && npm test && npm run build`
-- Client quality: `cd Client && npm run lint && npm run typecheck && npm test && npm run build`
+- Admin quality: `cd Admin && npm run test:integration && npm run test:e2e && npm run lint && npm run typecheck && npm test && npm run build`
+- Client quality: `cd Client && npm run test:integration && npm run test:e2e && npm run lint && npm run typecheck && npm test && npm run build`
 
 ## Protected Secrets
 
@@ -33,6 +33,7 @@
 
 - Both apps start locally.
 - Production builds pass.
+- Integration and repo-local E2E smoke scripts pass.
 - No secret values are exposed in code, logs, or docs.
 - Admin auth guards protect dashboard pages and API mutations.
 - Storefront renders from backend data and handles empty states gracefully.

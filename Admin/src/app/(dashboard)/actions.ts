@@ -12,6 +12,9 @@ import {
   createCategory,
   createCollection,
   createProduct,
+  updateCategory,
+  updateCollection,
+  updateProduct,
 } from "@/modules/catalog/service";
 import { upsertHomepage, upsertSettings } from "@/modules/content/service";
 import { createCoupon } from "@/modules/coupons/service";
@@ -28,6 +31,20 @@ export async function createCategoryAction(formData: FormData) {
     description: String(formData.get("description") ?? ""),
     imageUrl: String(formData.get("imageUrl") ?? ""),
     status: (formData.get("status") as "draft" | "published" | null) ?? "draft",
+    publishAt: String(formData.get("publishAt") ?? ""),
+    unpublishAt: String(formData.get("unpublishAt") ?? ""),
+  });
+  revalidatePath("/dashboard/categories");
+}
+
+export async function updateCategoryAction(formData: FormData) {
+  await updateCategory(String(formData.get("categoryId") ?? ""), {
+    name: String(formData.get("name") ?? ""),
+    description: String(formData.get("description") ?? ""),
+    imageUrl: String(formData.get("imageUrl") ?? ""),
+    status: (formData.get("status") as "draft" | "published" | null) ?? "draft",
+    publishAt: String(formData.get("publishAt") ?? ""),
+    unpublishAt: String(formData.get("unpublishAt") ?? ""),
   });
   revalidatePath("/dashboard/categories");
 }
@@ -38,6 +55,20 @@ export async function createCollectionAction(formData: FormData) {
     description: String(formData.get("description") ?? ""),
     coverImageUrl: String(formData.get("coverImageUrl") ?? ""),
     status: (formData.get("status") as "draft" | "published" | null) ?? "draft",
+    publishAt: String(formData.get("publishAt") ?? ""),
+    unpublishAt: String(formData.get("unpublishAt") ?? ""),
+  });
+  revalidatePath("/dashboard/collections");
+}
+
+export async function updateCollectionAction(formData: FormData) {
+  await updateCollection(String(formData.get("collectionId") ?? ""), {
+    name: String(formData.get("name") ?? ""),
+    description: String(formData.get("description") ?? ""),
+    coverImageUrl: String(formData.get("coverImageUrl") ?? ""),
+    status: (formData.get("status") as "draft" | "published" | null) ?? "draft",
+    publishAt: String(formData.get("publishAt") ?? ""),
+    unpublishAt: String(formData.get("unpublishAt") ?? ""),
   });
   revalidatePath("/dashboard/collections");
 }
@@ -66,6 +97,38 @@ export async function createProductAction(formData: FormData) {
       formData.get("variantCompareAtPriceMinor") ?? 0,
     ),
     variantStockQuantity: Number(formData.get("variantStockQuantity") ?? 0),
+    publishAt: String(formData.get("publishAt") ?? ""),
+    unpublishAt: String(formData.get("unpublishAt") ?? ""),
+  });
+  revalidatePath("/dashboard/products");
+}
+
+export async function updateProductAction(formData: FormData) {
+  await updateProduct(String(formData.get("productId") ?? ""), {
+    name: String(formData.get("name") ?? ""),
+    shortDescription: String(formData.get("shortDescription") ?? ""),
+    description: String(formData.get("description") ?? ""),
+    material: String(formData.get("material") ?? ""),
+    careInstructions: String(formData.get("careInstructions") ?? ""),
+    heroImageUrl: String(formData.get("heroImageUrl") ?? ""),
+    categoryId: String(formData.get("categoryId") ?? ""),
+    collectionIds: formData.getAll("collectionIds").map(String),
+    status:
+      (formData.get("status") as "draft" | "published" | "archived" | null) ??
+      "draft",
+    featured: formData.get("featured") === "on",
+    newArrival: formData.get("newArrival") === "on",
+    mostLoved: formData.get("mostLoved") === "on",
+    variantSku: String(formData.get("variantSku") ?? ""),
+    variantSize: String(formData.get("variantSize") ?? ""),
+    variantColor: String(formData.get("variantColor") ?? ""),
+    variantPriceMinor: Number(formData.get("variantPriceMinor") ?? 0),
+    variantCompareAtPriceMinor: Number(
+      formData.get("variantCompareAtPriceMinor") ?? 0,
+    ),
+    variantStockQuantity: Number(formData.get("variantStockQuantity") ?? 0),
+    publishAt: String(formData.get("publishAt") ?? ""),
+    unpublishAt: String(formData.get("unpublishAt") ?? ""),
   });
   revalidatePath("/dashboard/products");
 }

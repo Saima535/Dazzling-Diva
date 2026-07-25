@@ -11,6 +11,8 @@ const categorySchema = new Schema(
       default: "draft",
     },
     imageUrl: { type: String, default: "" },
+    publishAt: { type: Date, default: null },
+    unpublishAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

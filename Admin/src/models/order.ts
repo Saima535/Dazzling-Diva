@@ -36,7 +36,7 @@ const orderSchema = new Schema(
     shippingMinor: { type: Number, required: true },
     grandTotalMinor: { type: Number, required: true },
     couponCode: { type: String, default: "" },
-    idempotencyKey: { type: String, default: "", index: true },
+    idempotencyKey: { type: String, default: "" },
     paymentMethod: { type: String, default: "cod" },
     paymentStatus: { type: String, default: "unpaid" },
     orderStatus: { type: String, default: "pending" },
@@ -44,6 +44,14 @@ const orderSchema = new Schema(
     statusHistory: { type: [statusHistorySchema], default: [] },
   },
   { timestamps: true },
+);
+
+orderSchema.index(
+  { idempotencyKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { idempotencyKey: { $type: "string", $ne: "" } },
+  },
 );
 
 export type Order = InferSchemaType<typeof orderSchema>;

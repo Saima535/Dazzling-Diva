@@ -2,13 +2,34 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import { connectToDatabase } from "@/lib/db";
+import { connectToDatabase, startDatabaseSession } from "@/lib/db";
 import { recordAudit } from "@/lib/audit";
 import { ProductModel } from "@/models/product";
 import { OrderModel } from "@/models/order";
 import { ShippingMethodModel } from "@/models/shipping-method";
 import { validateCoupon } from "@/modules/coupons/service";
 import { InventoryMovementModel } from "@/models/inventory-movement";
+import type { Order } from "@/models/order";
+
+export function isDuplicateKeyError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === 11000
+  );
+}
+
+export function buildCheckoutProductFilter(slug: string, now: Date) {
+  return {
+    slug,
+    status: "published" as const,
+    $and: [
+      { $or: [{ publishAt: null }, { publishAt: { $lte: now } }] },
+      { $or: [{ unpublishAt: null }, { unpublishAt: { $gt: now } }] },
+    ],
+  };
+}
 
 export const shippingInputSchema = z.object({
   name: z.string().min(2),
@@ -63,109 +84,172 @@ export async function createOrder(input: z.input<typeof createOrderSchema>) {
   await connectToDatabase();
 
   if (values.idempotencyKey) {
-    const existing = await OrderModel.findOne({ idempotencyKey: values.idempotencyKey }).lean();
+    const existing = await OrderModel.findOne({
+      idempotencyKey: values.idempotencyKey,
+    }).lean();
     if (existing) {
       return existing;
     }
   }
 
-  const shippingMethod = await ShippingMethodModel.findOne({
-    code: values.shippingMethodCode.toUpperCase(),
-    enabled: true,
-  }).lean();
+  const session = await startDatabaseSession();
 
-  if (!shippingMethod) {
-    throw new Error("A valid shipping method must be configured.");
-  }
+  try {
+    let createdOrder: (Order & { _id: unknown; orderNumber: string }) | null = null;
 
-  const orderItems = [];
-  let subtotalMinor = 0;
+    await session.withTransaction(async () => {
+      const shippingMethod = await ShippingMethodModel.findOne({
+        code: values.shippingMethodCode.toUpperCase(),
+        enabled: true,
+      })
+        .session(session)
+        .lean();
 
-  for (const item of values.items) {
-    const product = await ProductModel.findOne({
-      slug: item.productSlug,
-      status: "published",
+      if (!shippingMethod) {
+        throw new Error("A valid shipping method must be configured.");
+      }
+
+      const now = new Date();
+      const orderItems = [];
+      let subtotalMinor = 0;
+
+      for (const item of values.items) {
+        const product = await ProductModel.findOne(
+          buildCheckoutProductFilter(item.productSlug, now),
+        ).session(session);
+
+        if (!product) {
+          throw new Error(`Product ${item.productSlug} is unavailable.`);
+        }
+
+        const variant = product.variants.find((entry) => entry.sku === item.sku);
+        if (!variant) {
+          throw new Error(`Variant ${item.sku} is unavailable.`);
+        }
+
+        const previousQuantity = variant.stockQuantity;
+        const updateResult = await ProductModel.updateOne(
+          {
+            _id: product._id,
+            variants: {
+              $elemMatch: {
+                _id: variant._id,
+                stockQuantity: { $gte: item.quantity },
+              },
+            },
+          },
+          { $inc: { "variants.$.stockQuantity": -item.quantity } },
+          { session },
+        );
+
+        if (!updateResult.modifiedCount) {
+          throw new Error(`Insufficient stock remains for ${product.name}.`);
+        }
+
+        await InventoryMovementModel.create(
+          [
+            {
+              productId: String(product._id),
+              productName: String(product.name),
+              variantSku: variant.sku,
+              movementType: "order_placed",
+              quantityDelta: -item.quantity,
+              previousQuantity,
+              newQuantity: previousQuantity - item.quantity,
+              reason: "Checkout placement",
+            },
+          ],
+          { session },
+        );
+
+        const lineTotalMinor = variant.priceMinor * item.quantity;
+        subtotalMinor += lineTotalMinor;
+
+        orderItems.push({
+          productName: product.name,
+          productSlug: product.slug,
+          variantSku: variant.sku,
+          quantity: item.quantity,
+          unitPriceMinor: variant.priceMinor,
+          lineTotalMinor,
+        });
+      }
+
+      const shippingMinor = shippingMethod.feeMinor;
+      const appliedCoupon = values.couponCode
+        ? await validateCoupon(values.couponCode, subtotalMinor, session)
+        : null;
+      const discountMinor = appliedCoupon?.discountMinor ?? 0;
+      const grandTotalMinor = subtotalMinor - discountMinor + shippingMinor;
+      const orderNumber = `DD-${randomUUID().slice(0, 8).toUpperCase()}`;
+
+      const orders = await OrderModel.create(
+        [
+          {
+            orderNumber,
+            customerId: values.customerId,
+            customerName: values.customerName,
+            customerEmail: values.customerEmail,
+            customerPhone: values.customerPhone,
+            address: values.address,
+            district: values.district,
+            items: orderItems,
+            subtotalMinor,
+            discountMinor,
+            shippingMinor,
+            grandTotalMinor,
+            couponCode: appliedCoupon?.coupon.code ?? "",
+            idempotencyKey: values.idempotencyKey ?? "",
+            statusHistory: [{ status: "pending", note: "Order created" }],
+          },
+        ],
+        { session },
+      );
+      createdOrder = (orders[0] as typeof createdOrder) ?? null;
+
+      if (appliedCoupon?.coupon) {
+        appliedCoupon.coupon.usageCount += 1;
+        await appliedCoupon.coupon.save({ session });
+      }
+
+      if (createdOrder) {
+        await recordAudit({
+          action: "order.created",
+          entityType: "order",
+          entityId: String(createdOrder._id),
+          summary: createdOrder.orderNumber,
+        });
+      }
     });
 
-    if (!product) {
-      throw new Error(`Product ${item.productSlug} is unavailable.`);
+    if (!createdOrder) {
+      throw new Error("Order could not be created.");
     }
 
-    const variant = product.variants.find((entry) => entry.sku === item.sku);
-    if (!variant) {
-      throw new Error(`Variant ${item.sku} is unavailable.`);
+    return createdOrder;
+  } catch (error) {
+    if (values.idempotencyKey && isDuplicateKeyError(error)) {
+      const existing = await OrderModel.findOne({
+        idempotencyKey: values.idempotencyKey,
+      }).lean();
+      if (existing) {
+        return existing;
+      }
     }
 
-    if (variant.stockQuantity < item.quantity) {
-      throw new Error(`Only ${variant.stockQuantity} units remain for ${product.name}.`);
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Checkout failed during transactional processing.";
+    if (message.includes("Transaction numbers are only allowed")) {
+      throw new Error(
+        "MongoDB transactions are unavailable. Use a replica set deployment for checkout.",
+      );
     }
-
-    const previousQuantity = variant.stockQuantity;
-    variant.stockQuantity -= item.quantity;
-    await product.save();
-    await InventoryMovementModel.create({
-      productId: String(product._id),
-      productName: String(product.name),
-      variantSku: variant.sku,
-      movementType: "order_placed",
-      quantityDelta: -item.quantity,
-      previousQuantity,
-      newQuantity: variant.stockQuantity,
-      reason: "Checkout placement",
-    });
-
-    const lineTotalMinor = variant.priceMinor * item.quantity;
-    subtotalMinor += lineTotalMinor;
-
-    orderItems.push({
-      productName: product.name,
-      productSlug: product.slug,
-      variantSku: variant.sku,
-      quantity: item.quantity,
-      unitPriceMinor: variant.priceMinor,
-      lineTotalMinor,
-    });
+    throw error;
+  } finally {
+    await session.endSession();
   }
-
-  const shippingMinor = shippingMethod.feeMinor;
-  const appliedCoupon = values.couponCode
-    ? await validateCoupon(values.couponCode, subtotalMinor)
-    : null;
-  const discountMinor = appliedCoupon?.discountMinor ?? 0;
-  const grandTotalMinor = subtotalMinor - discountMinor + shippingMinor;
-  const orderNumber = `DD-${randomUUID().slice(0, 8).toUpperCase()}`;
-
-  const order = await OrderModel.create({
-    orderNumber,
-    customerId: values.customerId,
-    customerName: values.customerName,
-    customerEmail: values.customerEmail,
-    customerPhone: values.customerPhone,
-    address: values.address,
-    district: values.district,
-    items: orderItems,
-    subtotalMinor,
-    discountMinor,
-    shippingMinor,
-    grandTotalMinor,
-    couponCode: appliedCoupon?.coupon.code ?? "",
-    idempotencyKey: values.idempotencyKey ?? "",
-    statusHistory: [{ status: "pending", note: "Order created" }],
-  });
-
-  if (appliedCoupon?.coupon) {
-    appliedCoupon.coupon.usageCount += 1;
-    await appliedCoupon.coupon.save();
-  }
-
-  await recordAudit({
-    action: "order.created",
-    entityType: "order",
-    entityId: String(order._id),
-    summary: order.orderNumber,
-  });
-
-  return order;
 }
 
 export async function updateOrderStatus(

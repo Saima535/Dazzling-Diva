@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { getCustomerOrders } from "@/src/lib/api";
 import { ReviewForm } from "@/src/components/review-form";
-import { getCustomerToken } from "@/src/lib/customer-session";
+import { getCustomerAccessToken } from "@/src/lib/customer-session";
 import { formatMoney } from "@/src/lib/money";
 
 export default async function AccountOrderDetailPage({
@@ -10,7 +10,7 @@ export default async function AccountOrderDetailPage({
 }: {
   params: Promise<{ orderNumber: string }>;
 }) {
-  const token = await getCustomerToken();
+  const token = await getCustomerAccessToken();
   if (!token) {
     redirect("/account/login");
   }

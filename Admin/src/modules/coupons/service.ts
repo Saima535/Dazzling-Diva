@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ClientSession } from "mongoose";
 
 import { recordAudit } from "@/lib/audit";
 import { connectToDatabase } from "@/lib/db";
@@ -34,12 +35,17 @@ export async function listCoupons() {
   return CouponModel.find().sort({ createdAt: -1 }).lean();
 }
 
-export async function validateCoupon(code: string, subtotalMinor: number) {
+export async function validateCoupon(
+  code: string,
+  subtotalMinor: number,
+  session?: ClientSession,
+) {
   await connectToDatabase();
-  const coupon = await CouponModel.findOne({
+  const couponQuery = CouponModel.findOne({
     code: code.toUpperCase(),
     active: true,
   });
+  const coupon = session ? await couponQuery.session(session) : await couponQuery;
 
   if (!coupon) {
     throw new Error("Coupon not found.");

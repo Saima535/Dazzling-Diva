@@ -6,7 +6,15 @@ import { ProductModel } from "@/models/product";
 export async function GET(_: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   await connectToDatabase();
-  const category = await CategoryModel.findOne({ slug, status: "published" }).lean();
+  const now = new Date();
+  const category = await CategoryModel.findOne({
+    slug,
+    status: "published",
+    $and: [
+      { $or: [{ publishAt: null }, { publishAt: { $lte: now } }] },
+      { $or: [{ unpublishAt: null }, { unpublishAt: { $gt: now } }] },
+    ],
+  }).lean();
 
   if (!category) {
     return fail("Category not found.", 404);

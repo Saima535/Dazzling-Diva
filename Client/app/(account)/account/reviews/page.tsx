@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 
 import { getCustomerReviews } from "@/src/lib/api";
-import { getCustomerToken } from "@/src/lib/customer-session";
+import { getCustomerAccessToken } from "@/src/lib/customer-session";
 
 export default async function AccountReviewsPage() {
-  const token = await getCustomerToken();
+  const token = await getCustomerAccessToken();
   if (!token) {
     redirect("/account/login");
   }

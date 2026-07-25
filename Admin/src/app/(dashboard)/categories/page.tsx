@@ -1,7 +1,7 @@
 import { connectToDatabase } from "@/lib/db";
 import { CategoryModel } from "@/models/category";
 
-import { createCategoryAction } from "../actions";
+import { createCategoryAction, updateCategoryAction } from "../actions";
 
 export default async function CategoriesPage() {
   await connectToDatabase();
@@ -15,6 +15,8 @@ export default async function CategoriesPage() {
           <input name="name" placeholder="Category name" required />
           <textarea name="description" placeholder="Description" rows={4} />
           <input name="imageUrl" placeholder="Cloudinary or CDN image URL" />
+          <input name="publishAt" type="datetime-local" />
+          <input name="unpublishAt" type="datetime-local" />
           <select name="status" defaultValue="draft">
             <option value="draft">Draft</option>
             <option value="published">Published</option>
@@ -32,15 +34,31 @@ export default async function CategoriesPage() {
               key={String(category._id)}
               className="rounded-2xl border border-white/10 bg-black/25 p-4"
             >
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="font-medium">{category.name}</h3>
-                  <p className="text-sm text-white/55">/{category.slug}</p>
+              <form action={updateCategoryAction} className="grid gap-3">
+                <input type="hidden" name="categoryId" value={String(category._id)} />
+                <input name="name" defaultValue={category.name} />
+                <textarea name="description" rows={3} defaultValue={category.description ?? ""} />
+                <input name="imageUrl" defaultValue={category.imageUrl ?? ""} />
+                <div className="grid gap-3 md:grid-cols-3">
+                  <select name="status" defaultValue={category.status}>
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                  </select>
+                  <input
+                    name="publishAt"
+                    type="datetime-local"
+                    defaultValue={category.publishAt ? new Date(category.publishAt).toISOString().slice(0, 16) : ""}
+                  />
+                  <input
+                    name="unpublishAt"
+                    type="datetime-local"
+                    defaultValue={category.unpublishAt ? new Date(category.unpublishAt).toISOString().slice(0, 16) : ""}
+                  />
                 </div>
-                <span className="text-xs uppercase tracking-[0.25em] text-white/45">
-                  {category.status}
-                </span>
-              </div>
+                <button className="w-fit rounded-full border border-white/10 px-4 py-2 text-xs">
+                  Update category
+                </button>
+              </form>
             </article>
           ))}
           {!categories.length && (

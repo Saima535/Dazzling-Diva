@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { createCsrfCookieValue, csrfCookieName } from "@/lib/csrf";
+
 export function proxy(request: NextRequest) {
   const response = NextResponse.next();
 
@@ -21,6 +23,15 @@ export function proxy(request: NextRequest) {
       "Strict-Transport-Security",
       "max-age=31536000; includeSubDomains",
     );
+  }
+
+  if (!request.cookies.get(csrfCookieName)?.value) {
+    response.cookies.set(csrfCookieName, createCsrfCookieValue(), {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: request.nextUrl.protocol === "https:",
+      path: "/",
+    });
   }
 
   return response;

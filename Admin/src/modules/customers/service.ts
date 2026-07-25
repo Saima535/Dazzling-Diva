@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { connectToDatabase } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/auth";
-import { issueCustomerToken } from "@/lib/customer-auth";
+import { issueCustomerSessionTokens } from "@/lib/customer-auth";
 import { CustomerModel } from "@/models/customer";
 import { OrderModel } from "@/models/order";
 import { ProductModel } from "@/models/product";
@@ -21,7 +21,10 @@ export const loginCustomerSchema = z.object({
   password: z.string().min(8),
 });
 
-export async function registerCustomer(input: z.input<typeof registerCustomerSchema>) {
+export async function registerCustomer(
+  input: z.input<typeof registerCustomerSchema>,
+  userAgent = "",
+) {
   const values = registerCustomerSchema.parse(input);
   await connectToDatabase();
 
@@ -37,9 +40,13 @@ export async function registerCustomer(input: z.input<typeof registerCustomerSch
     passwordHash: await hashPassword(values.password),
   });
 
-  const token = await issueCustomerToken(String(customer._id));
+  const { accessToken, refreshToken } = await issueCustomerSessionTokens(
+    String(customer._id),
+    userAgent,
+  );
   return {
-    token,
+    accessToken,
+    refreshToken,
     customer: {
       id: String(customer._id),
       name: customer.name,
@@ -49,7 +56,10 @@ export async function registerCustomer(input: z.input<typeof registerCustomerSch
   };
 }
 
-export async function loginCustomer(input: z.input<typeof loginCustomerSchema>) {
+export async function loginCustomer(
+  input: z.input<typeof loginCustomerSchema>,
+  userAgent = "",
+) {
   const values = loginCustomerSchema.parse(input);
   await connectToDatabase();
   const customer = await CustomerModel.findOne({ email: values.email.toLowerCase() });
@@ -66,9 +76,13 @@ export async function loginCustomer(input: z.input<typeof loginCustomerSchema>) 
   customer.lastLoginAt = new Date();
   await customer.save();
 
-  const token = await issueCustomerToken(String(customer._id));
+  const { accessToken, refreshToken } = await issueCustomerSessionTokens(
+    String(customer._id),
+    userAgent,
+  );
   return {
-    token,
+    accessToken,
+    refreshToken,
     customer: {
       id: String(customer._id),
       name: customer.name,

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { env } from "@/src/lib/env";
-import { setCustomerToken } from "@/src/lib/customer-session";
+import { setCustomerTokens } from "@/src/lib/customer-session";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const response = await fetch(`${env.BACKEND_API_URL}/customers/register`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Origin: env.NEXT_PUBLIC_SITE_URL },
     body: JSON.stringify(body),
   });
 
@@ -20,6 +20,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await setCustomerToken(payload.data.token);
+  await setCustomerTokens(payload.data.accessToken, payload.data.refreshToken);
   return NextResponse.json({ success: true, data: payload.data.customer });
 }

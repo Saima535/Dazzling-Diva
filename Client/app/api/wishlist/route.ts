@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { env } from "@/src/lib/env";
-import { getCustomerToken } from "@/src/lib/customer-session";
+import { getCustomerAccessToken } from "@/src/lib/customer-session";
 
 export async function GET() {
-  const token = await getCustomerToken();
+  const token = await getCustomerAccessToken();
   if (!token) {
     return NextResponse.json({ success: true, data: [] });
   }
@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const token = await getCustomerToken();
+  const token = await getCustomerAccessToken();
   if (!token) {
     return NextResponse.json({ success: false, error: "Please sign in first." }, { status: 401 });
   }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const token = await getCustomerToken();
+  const token = await getCustomerAccessToken();
   if (!token) {
     return NextResponse.json({ success: false, error: "Please sign in first." }, { status: 401 });
   }

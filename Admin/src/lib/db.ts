@@ -32,3 +32,8 @@ export async function connectToDatabase() {
   cached.conn = await cached.promise;
   return cached.conn;
 }
+
+export async function startDatabaseSession() {
+  await connectToDatabase();
+  return mongoose.startSession();
+}

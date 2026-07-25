@@ -6,9 +6,14 @@ import { ProductModel } from "@/models/product";
 export async function GET(_: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   await connectToDatabase();
+  const now = new Date();
   const collection = await CollectionModel.findOne({
     slug,
     status: "published",
+    $and: [
+      { $or: [{ publishAt: null }, { publishAt: { $lte: now } }] },
+      { $or: [{ unpublishAt: null }, { unpublishAt: { $gt: now } }] },
+    ],
   }).lean();
 
   if (!collection) {
