@@ -2,7 +2,7 @@ import Image from "next/image";
 
 import { AddToCartButton } from "@/src/components/product-cart-button";
 import { formatMoney } from "@/src/lib/money";
-import { getProduct } from "@/src/lib/api";
+import { getProduct, getProductReviews } from "@/src/lib/api";
 
 export default async function ProductDetailPage({
   params,
@@ -10,7 +10,10 @@ export default async function ProductDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = await getProduct(slug);
+  const [product, reviews] = await Promise.all([
+    getProduct(slug),
+    getProductReviews(slug).catch(() => []),
+  ]);
   const primaryVariant = product.variants[0];
 
   return (
@@ -56,6 +59,21 @@ export default async function ProductDetailPage({
             priceMinor={primaryVariant?.priceMinor ?? 0}
           />
         </div>
+        <section className="mt-10">
+          <h2 className="text-2xl font-semibold">Customer reviews</h2>
+          <div className="mt-4 space-y-3">
+            {reviews.map((review) => (
+              <article key={review._id} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+                <p className="font-medium">{review.title || "Customer review"}</p>
+                <p className="mt-1 text-sm text-white/60">{review.rating}/5</p>
+                <p className="mt-2 text-sm text-white/70">{review.body || "No written feedback."}</p>
+              </article>
+            ))}
+            {!reviews.length ? (
+              <p className="text-sm text-white/60">Approved reviews will appear here after moderation.</p>
+            ) : null}
+          </div>
+        </section>
       </div>
     </main>
   );

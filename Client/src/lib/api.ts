@@ -105,6 +105,19 @@ export async function getProduct(slug: string) {
   return apiFetch<PublicProduct>(`/catalog/products/${slug}`);
 }
 
+export async function getProductReviews(slug: string) {
+  return apiFetch<
+    {
+      _id: string;
+      productName: string;
+      rating: number;
+      title: string;
+      body: string;
+      createdAt: string;
+    }[]
+  >(`/catalog/products/${slug}/reviews`);
+}
+
 export async function getCategory(slug: string) {
   return apiFetch<{ category: PublicCategory; products: PublicProduct[] }>(
     `/catalog/categories/${slug}`,
@@ -194,10 +207,36 @@ export async function getCustomerOrders(token: string) {
       orderStatus: string;
       paymentStatus: string;
       grandTotalMinor: number;
+      items: {
+        productName: string;
+        productSlug: string;
+        variantSku: string;
+        quantity: number;
+        unitPriceMinor: number;
+      }[];
+      statusHistory?: {
+        status: string;
+        note?: string;
+        changedAt: string;
+      }[];
     }[]
   >("/customers/orders", token);
 }
 
 export async function getWishlist(token: string) {
   return authedApiFetch<PublicProduct[]>("/customers/wishlist", token);
+}
+
+export async function getCustomerReviews(token: string) {
+  return authedApiFetch<
+    {
+      _id: string;
+      productName: string;
+      rating: number;
+      title: string;
+      body: string;
+      status: string;
+      createdAt: string;
+    }[]
+  >("/customers/reviews", token);
 }

@@ -22,6 +22,7 @@ const adminUserSchema = new Schema(
       default: "active",
     },
     lastLoginAt: Date,
+    passwordChangedAt: Date,
   },
   { timestamps: true },
 );

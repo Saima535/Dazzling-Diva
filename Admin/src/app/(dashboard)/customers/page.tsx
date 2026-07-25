@@ -1,7 +1,9 @@
 import { connectToDatabase } from "@/lib/db";
+import { requireAdminRole } from "@/lib/rbac";
 import { CustomerModel } from "@/models/customer";
 
 export default async function CustomersPage() {
+  await requireAdminRole(["super_admin", "support_manager", "order_manager"]);
   await connectToDatabase();
   const customers = await CustomerModel.find().sort({ createdAt: -1 }).lean();
 

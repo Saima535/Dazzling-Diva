@@ -150,6 +150,7 @@ export async function createOrder(input: z.input<typeof createOrderSchema>) {
     grandTotalMinor,
     couponCode: appliedCoupon?.coupon.code ?? "",
     idempotencyKey: values.idempotencyKey ?? "",
+    statusHistory: [{ status: "pending", note: "Order created" }],
   });
 
   if (appliedCoupon?.coupon) {
@@ -170,6 +171,7 @@ export async function createOrder(input: z.input<typeof createOrderSchema>) {
 export async function updateOrderStatus(
   orderId: string,
   status: "pending" | "confirmed" | "processing" | "packed" | "shipped" | "delivered" | "cancelled",
+  note = "",
 ) {
   await connectToDatabase();
   const order = await OrderModel.findById(orderId);
@@ -201,12 +203,44 @@ export async function updateOrderStatus(
   }
 
   order.orderStatus = status;
+  order.statusHistory.push({
+    status,
+    note,
+    changedAt: new Date(),
+  });
   await order.save();
   await recordAudit({
     action: "order.status_updated",
     entityType: "order",
     entityId: String(order._id),
     summary: `${order.orderNumber}:${status}`,
+  });
+  return order;
+}
+
+export async function updateOrderOperations(input: {
+  orderId: string;
+  paymentStatus?: "unpaid" | "pending" | "paid" | "failed" | "refunded";
+  internalNote?: string;
+}) {
+  await connectToDatabase();
+  const order = await OrderModel.findById(input.orderId);
+  if (!order) {
+    throw new Error("Order not found.");
+  }
+
+  if (input.paymentStatus) {
+    order.paymentStatus = input.paymentStatus;
+  }
+  if (typeof input.internalNote === "string") {
+    order.internalNote = input.internalNote;
+  }
+  await order.save();
+  await recordAudit({
+    action: "order.operations_updated",
+    entityType: "order",
+    entityId: String(order._id),
+    summary: order.orderNumber,
   });
   return order;
 }

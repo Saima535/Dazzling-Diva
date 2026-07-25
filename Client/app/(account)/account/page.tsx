@@ -37,6 +37,9 @@ export default async function AccountPage() {
         <Link href="/account/orders" className="rounded-full bg-white px-5 py-3 text-sm font-medium text-black">
           View orders
         </Link>
+        <Link href="/account/reviews" className="rounded-full border border-white/10 px-5 py-3 text-sm">
+          View reviews
+        </Link>
         <Link href="/wishlist" className="rounded-full border border-white/10 px-5 py-3 text-sm">
           View wishlist
         </Link>

@@ -1,12 +1,14 @@
 import { connectToDatabase } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
+import { requireAdminRole } from "@/lib/rbac";
 import { InventoryMovementModel } from "@/models/inventory-movement";
 import { OrderModel } from "@/models/order";
 import { ShippingMethodModel } from "@/models/shipping-method";
 
-import { createShippingMethodAction, updateOrderStatusAction } from "../actions";
+import { createShippingMethodAction, updateOrderOperationsAction, updateOrderStatusAction } from "../actions";
 
 export default async function OrdersPage() {
+  await requireAdminRole(["super_admin", "order_manager", "support_manager"]);
   await connectToDatabase();
   const [orders, shippingMethods, movements] = await Promise.all([
     OrderModel.find().sort({ createdAt: -1 }).lean(),
@@ -60,10 +62,19 @@ export default async function OrdersPage() {
           <div className="mt-5 space-y-3">
             {orders.map((order) => (
               <div key={String(order._id)} className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="font-medium">{order.orderNumber}</p>
                     <p className="text-sm text-white/60">{order.customerName}</p>
+                    <p className="mt-1 text-xs text-white/45">{order.customerEmail}</p>
+                    <p className="mt-1 text-xs text-white/45">{order.address}, {order.district}</p>
+                    <div className="mt-3 space-y-1 text-xs text-white/55">
+                      {order.items.map((item, index) => (
+                        <p key={`${order.orderNumber}-${index}`}>
+                          {item.productName} · {item.variantSku} · qty {item.quantity}
+                        </p>
+                      ))}
+                    </div>
                   </div>
                   <div className="text-right">
                     <p className="text-sm">{formatMoney(order.grandTotalMinor)}</p>
@@ -74,11 +85,31 @@ export default async function OrdersPage() {
                           <option key={status} value={status}>{status}</option>
                         ))}
                       </select>
+                      <input className="w-40 rounded-full px-3 py-2 text-xs" name="note" placeholder="Status note" />
                       <button className="rounded-full border border-white/10 px-3 py-2 text-xs">
                         Update
                       </button>
                     </form>
+                    <form action={updateOrderOperationsAction} className="mt-2 grid gap-2">
+                      <input type="hidden" name="orderId" value={String(order._id)} />
+                      <select className="rounded-full px-3 py-2 text-xs" name="paymentStatus" defaultValue={order.paymentStatus}>
+                        {["unpaid", "pending", "paid", "failed", "refunded"].map((status) => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                      <textarea name="internalNote" rows={3} placeholder="Internal note" defaultValue={order.internalNote ?? ""} />
+                      <button className="rounded-full border border-white/10 px-3 py-2 text-xs">
+                        Save ops
+                      </button>
+                    </form>
                   </div>
+                </div>
+                <div className="mt-4 border-t border-white/10 pt-3 text-xs text-white/50">
+                  {order.statusHistory?.map((entry, index) => (
+                    <p key={`${order.orderNumber}-history-${index}`}>
+                      {entry.status} · {entry.note || "No note"}
+                    </p>
+                  ))}
                 </div>
               </div>
             ))}

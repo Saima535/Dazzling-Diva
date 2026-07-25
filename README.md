@@ -12,11 +12,13 @@ Dazzling Diva is a dual-application fashion ecommerce platform. `Admin` is the p
 ## Implemented Modules
 
 - Admin authentication with password hashing and a signed session cookie
-- Admin dashboard sections for products, categories, collections, homepage content, orders, shipping, and settings
-- MongoDB-backed models for admin users, catalog, homepage config, shipping methods, and orders
-- Public storefront API for home content, categories, collections, products, checkout, and order tracking
-- Storefront home, shop, category, collection, product, cart, checkout, order success, order tracking, and legal/content pages
+- Admin dashboard sections for products, categories, collections, homepage content, orders, shipping, settings, coupons, customers, reviews, administrators, audit logs, and media
+- MongoDB-backed models for admin users, catalog, homepage config, shipping methods, orders, customers, wishlists, coupons, reviews, inventory movements, media assets, audit logs, and rate-limit windows
+- Public storefront API for home content, categories, collections, products, checkout, coupon validation, order tracking, customer auth, customer profile, customer orders, customer wishlist, and review submission
+- Storefront home, shop, category, collection, product, cart, checkout, order success, order tracking, customer account, wishlist, and legal/content pages
 - Cookie-backed guest cart with server-side checkout submission
+- Customer account registration/login and account-linked order history
+- Media upload, replace, search/filter, and delete workflows backed by signed server-side Cloudinary requests
 
 ## Environment
 
@@ -101,9 +103,19 @@ npm test
 npm run build
 ```
 
+## Security Notes
+
+- Passwords are hashed with `argon2`.
+- Security headers are applied in [Admin/src/proxy.ts](E:/myWebsites/Dazzling-Diva/Admin/src/proxy.ts:1).
+- Sensitive checkout and customer routes enforce origin validation and Mongo-backed rate limiting.
+- Structured server logging redacts common secret-bearing keys before emission.
+
+## Media Management
+
+- The Admin media console now supports upload, replace, delete, search, and folder filtering.
+- Media persistence is tracked in the `MediaAsset` model, including usage-reference metadata.
+- Cloudinary requests are signed on the server and never expose the secret to the client.
+
 ## Current Limitations
 
-- Cloudinary upload flows are not wired into the dashboard yet; image fields currently accept hosted URLs.
-- Customer account authentication, wishlist persistence, and account-linked order history are still placeholder routes.
-- Inventory protection is implemented in a simple per-order update flow and does not yet use MongoDB transactions or idempotency keys.
-- Advanced admin CRUD such as edit, archive, publish scheduling, reviews, coupons, audit logs, and media management are not complete in this initial build.
+- The original brief still asked for a deeper finish than the current codebase provides. Remaining gaps include full refresh-token family rotation and reuse detection, end-to-end CSRF wiring, deeper RBAC policy coverage, full transactional checkout orchestration, full edit/archive/publish-scheduling CRUD across domains, broader operational consoles, and the requested integration/E2E test matrix.

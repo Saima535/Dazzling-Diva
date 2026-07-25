@@ -25,6 +25,8 @@ export const settingsInputSchema = z.object({
   supportEmail: z.string().default(""),
   supportPhone: z.string().default(""),
   footerTagline: z.string().default(""),
+  logoUrl: z.string().default(""),
+  faviconUrl: z.string().default(""),
   aboutPage: z.string().default(""),
   contactPage: z.string().default(""),
   faqPage: z.string().default(""),

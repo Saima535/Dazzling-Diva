@@ -9,7 +9,8 @@ import { ReviewModel } from "@/models/review";
 
 export const reviewInputSchema = z.object({
   customerId: z.string(),
-  productId: z.string(),
+  productId: z.string().optional(),
+  productSlug: z.string().optional(),
   rating: z.coerce.number().int().min(1).max(5),
   title: z.string().default(""),
   body: z.string().default(""),
@@ -19,7 +20,9 @@ export async function createReview(input: z.input<typeof reviewInputSchema>) {
   const values = reviewInputSchema.parse(input);
   await connectToDatabase();
 
-  const product = await ProductModel.findById(values.productId).lean();
+  const product = values.productId
+    ? await ProductModel.findById(values.productId).lean()
+    : await ProductModel.findOne({ slug: values.productSlug }).lean();
   if (!product) {
     throw new Error("Product not found.");
   }
@@ -36,7 +39,7 @@ export async function createReview(input: z.input<typeof reviewInputSchema>) {
 
   const review = await ReviewModel.create({
     customerId: new Types.ObjectId(values.customerId),
-    productId: new Types.ObjectId(values.productId),
+    productId: new Types.ObjectId(String(product._id)),
     productName: product.name,
     rating: values.rating,
     title: values.title,
@@ -56,6 +59,29 @@ export async function createReview(input: z.input<typeof reviewInputSchema>) {
 export async function listReviews() {
   await connectToDatabase();
   return ReviewModel.find().sort({ createdAt: -1 }).lean();
+}
+
+export async function listApprovedReviewsForProduct(productSlug: string) {
+  await connectToDatabase();
+  const product = await ProductModel.findOne({ slug: productSlug }).lean();
+  if (!product) {
+    return [];
+  }
+  return ReviewModel.find({
+    productId: product._id,
+    status: "approved",
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+}
+
+export async function listCustomerReviews(customerId: string) {
+  await connectToDatabase();
+  return ReviewModel.find({
+    customerId: new Types.ObjectId(customerId),
+  })
+    .sort({ createdAt: -1 })
+    .lean();
 }
 
 export async function setReviewStatus(reviewId: string, status: "approved" | "rejected") {

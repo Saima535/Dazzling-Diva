@@ -7,7 +7,7 @@ import { recordAudit } from "@/lib/audit";
 import { deleteImageFromCloudinary, getCloudinaryFolder, uploadImageToCloudinary } from "@/lib/cloudinary";
 import { connectToDatabase } from "@/lib/db";
 import { MediaAssetModel } from "@/models/media-asset";
-import { createAdminUser } from "@/modules/admin-users/service";
+import { createAdminUser, updateAdminUser } from "@/modules/admin-users/service";
 import {
   createCategory,
   createCollection,
@@ -15,7 +15,7 @@ import {
 } from "@/modules/catalog/service";
 import { upsertHomepage, upsertSettings } from "@/modules/content/service";
 import { createCoupon } from "@/modules/coupons/service";
-import { createShippingMethod, updateOrderStatus } from "@/modules/orders/service";
+import { createShippingMethod, updateOrderOperations, updateOrderStatus } from "@/modules/orders/service";
 import { setReviewStatus } from "@/modules/reviews/service";
 
 export async function logoutAction() {
@@ -94,6 +94,8 @@ export async function upsertSettingsAction(formData: FormData) {
     supportEmail: String(formData.get("supportEmail") ?? ""),
     supportPhone: String(formData.get("supportPhone") ?? ""),
     footerTagline: String(formData.get("footerTagline") ?? ""),
+    logoUrl: String(formData.get("logoUrl") ?? ""),
+    faviconUrl: String(formData.get("faviconUrl") ?? ""),
     aboutPage: String(formData.get("aboutPage") ?? ""),
     contactPage: String(formData.get("contactPage") ?? ""),
     faqPage: String(formData.get("faqPage") ?? ""),
@@ -140,7 +142,22 @@ export async function updateOrderStatusAction(formData: FormData) {
       | "shipped"
       | "delivered"
       | "cancelled",
+    String(formData.get("note") ?? ""),
   );
+  revalidatePath("/dashboard/orders");
+}
+
+export async function updateOrderOperationsAction(formData: FormData) {
+  await updateOrderOperations({
+    orderId: String(formData.get("orderId") ?? ""),
+    paymentStatus: String(formData.get("paymentStatus") ?? "") as
+      | "unpaid"
+      | "pending"
+      | "paid"
+      | "failed"
+      | "refunded",
+    internalNote: String(formData.get("internalNote") ?? ""),
+  });
   revalidatePath("/dashboard/orders");
 }
 
@@ -155,6 +172,20 @@ export async function createAdminUserAction(formData: FormData) {
       | "order_manager"
       | "content_manager"
       | "support_manager",
+  });
+  revalidatePath("/dashboard/administrators");
+}
+
+export async function updateAdminUserAction(formData: FormData) {
+  await updateAdminUser(String(formData.get("adminUserId") ?? ""), {
+    role: String(formData.get("role") ?? "") as
+      | "super_admin"
+      | "catalog_manager"
+      | "order_manager"
+      | "content_manager"
+      | "support_manager",
+    status: String(formData.get("status") ?? "") as "active" | "disabled",
+    password: String(formData.get("password") ?? ""),
   });
   revalidatePath("/dashboard/administrators");
 }
@@ -178,6 +209,7 @@ export async function uploadMediaAction(formData: FormData) {
       | "branding"
       | null) ?? "products";
   const altText = String(formData.get("altText") ?? "");
+  const replaceAssetId = String(formData.get("replaceAssetId") ?? "");
 
   if (!(file instanceof File) || !file.size) {
     throw new Error("A file is required.");
@@ -185,18 +217,36 @@ export async function uploadMediaAction(formData: FormData) {
 
   const uploaded = await uploadImageToCloudinary(file, getCloudinaryFolder(folderKind));
   await connectToDatabase();
-  const asset = await MediaAssetModel.create({
-    publicId: uploaded.public_id,
-    secureUrl: uploaded.secure_url,
-    folder: getCloudinaryFolder(folderKind),
-    altText,
-    width: uploaded.width,
-    height: uploaded.height,
-    format: uploaded.format,
-    bytes: uploaded.bytes,
-  });
+  let asset;
+  if (replaceAssetId) {
+    const existing = await MediaAssetModel.findById(replaceAssetId);
+    if (!existing) {
+      throw new Error("Asset to replace was not found.");
+    }
+    const oldPublicId = existing.publicId;
+    existing.publicId = uploaded.public_id;
+    existing.secureUrl = uploaded.secure_url;
+    existing.altText = altText || existing.altText;
+    existing.width = uploaded.width;
+    existing.height = uploaded.height;
+    existing.format = uploaded.format;
+    existing.bytes = uploaded.bytes;
+    asset = await existing.save();
+    await deleteImageFromCloudinary(oldPublicId);
+  } else {
+    asset = await MediaAssetModel.create({
+      publicId: uploaded.public_id,
+      secureUrl: uploaded.secure_url,
+      folder: getCloudinaryFolder(folderKind),
+      altText,
+      width: uploaded.width,
+      height: uploaded.height,
+      format: uploaded.format,
+      bytes: uploaded.bytes,
+    });
+  }
   await recordAudit({
-    action: "media.uploaded",
+    action: replaceAssetId ? "media.replaced" : "media.uploaded",
     entityType: "mediaAsset",
     entityId: String(asset._id),
     summary: asset.publicId,

@@ -45,3 +45,37 @@ export async function createAdminUser(input: z.input<typeof adminUserInputSchema
   });
   return admin;
 }
+
+export async function updateAdminUser(
+  adminUserId: string,
+  input: {
+    role?: "super_admin" | "catalog_manager" | "order_manager" | "content_manager" | "support_manager";
+    status?: "active" | "disabled";
+    password?: string;
+  },
+) {
+  await connectToDatabase();
+  const admin = await AdminUserModel.findById(adminUserId);
+  if (!admin) {
+    throw new Error("Administrator not found.");
+  }
+
+  if (input.role) {
+    admin.role = input.role;
+  }
+  if (input.status) {
+    admin.status = input.status;
+  }
+  if (input.password) {
+    admin.passwordHash = await hashPassword(input.password);
+    admin.passwordChangedAt = new Date();
+  }
+  await admin.save();
+  await recordAudit({
+    action: "admin_user.updated",
+    entityType: "adminUser",
+    entityId: String(admin._id),
+    summary: admin.email,
+  });
+  return admin;
+}

@@ -12,6 +12,15 @@ const orderLineSchema = new Schema(
   { _id: false },
 );
 
+const statusHistorySchema = new Schema(
+  {
+    status: { type: String, required: true },
+    note: { type: String, default: "" },
+    changedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const orderSchema = new Schema(
   {
     orderNumber: { type: String, required: true, unique: true },
@@ -31,6 +40,8 @@ const orderSchema = new Schema(
     paymentMethod: { type: String, default: "cod" },
     paymentStatus: { type: String, default: "unpaid" },
     orderStatus: { type: String, default: "pending" },
+    internalNote: { type: String, default: "" },
+    statusHistory: { type: [statusHistorySchema], default: [] },
   },
   { timestamps: true },
 );

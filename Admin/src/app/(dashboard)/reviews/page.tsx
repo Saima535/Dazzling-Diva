@@ -1,15 +1,38 @@
+import { requireAdminRole } from "@/lib/rbac";
 import { listReviews } from "@/modules/reviews/service";
 
 import { updateReviewStatusAction } from "../actions";
 
-export default async function ReviewsPage() {
+export default async function ReviewsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; q?: string }>;
+}) {
+  await requireAdminRole(["super_admin", "support_manager", "content_manager"]);
+  const params = await searchParams;
   const reviews = await listReviews();
+  const filtered = reviews.filter((review) => {
+    const matchesStatus = params.status ? review.status === params.status : true;
+    const haystack = `${review.productName} ${review.title} ${review.body}`.toLowerCase();
+    const matchesQuery = params.q ? haystack.includes(params.q.toLowerCase()) : true;
+    return matchesStatus && matchesQuery;
+  });
 
   return (
     <section className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
       <h1 className="text-2xl font-semibold">Reviews</h1>
+      <form className="mt-5 grid gap-4 md:grid-cols-[1fr_220px_auto]">
+        <input name="q" placeholder="Search product or copy" defaultValue={params.q ?? ""} />
+        <select name="status" defaultValue={params.status ?? ""}>
+          <option value="">All statuses</option>
+          <option value="pending">pending</option>
+          <option value="approved">approved</option>
+          <option value="rejected">rejected</option>
+        </select>
+        <button className="rounded-full border border-white/10 px-5 py-3 text-sm">Filter</button>
+      </form>
       <div className="mt-5 space-y-3">
-        {reviews.map((review) => (
+        {filtered.map((review) => (
           <article key={String(review._id)} className="rounded-2xl border border-white/10 bg-black/25 p-4">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -28,7 +51,7 @@ export default async function ReviewsPage() {
             </div>
           </article>
         ))}
-        {!reviews.length ? <p className="text-sm text-white/65">No reviews yet.</p> : null}
+        {!filtered.length ? <p className="text-sm text-white/65">No reviews match this view.</p> : null}
       </div>
     </section>
   );

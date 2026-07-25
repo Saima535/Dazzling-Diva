@@ -1,8 +1,10 @@
+import { requireAdminRole } from "@/lib/rbac";
 import { listCoupons } from "@/modules/coupons/service";
 
 import { createCouponAction } from "../actions";
 
 export default async function CouponsPage() {
+  await requireAdminRole(["super_admin", "content_manager", "order_manager"]);
   const coupons = await listCoupons();
 
   return (

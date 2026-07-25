@@ -12,6 +12,8 @@ const siteSettingsSchema = new Schema(
     privacyPage: { type: String, default: "" },
     refundPolicyPage: { type: String, default: "" },
     footerTagline: { type: String, default: "" },
+    logoUrl: { type: String, default: "" },
+    faviconUrl: { type: String, default: "" },
   },
   { timestamps: true },
 );

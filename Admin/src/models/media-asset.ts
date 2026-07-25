@@ -11,6 +11,7 @@ const mediaAssetSchema = new Schema(
     format: { type: String, default: "" },
     bytes: { type: Number, default: 0 },
     uploadedBy: { type: String, default: "system" },
+    usageReferences: { type: [String], default: [] },
   },
   { timestamps: true },
 );
