@@ -16,6 +16,7 @@ export default async function CheckoutPage() {
           <input name="customerEmail" placeholder="Email" type="email" required />
           <input name="customerPhone" placeholder="Phone" required />
           <input name="district" placeholder="District" required />
+          <input name="couponCode" placeholder="Coupon code (optional)" />
           <textarea className="md:col-span-2" name="address" placeholder="Delivery address" rows={4} required />
           <input name="shippingMethodCode" placeholder="Shipping code configured in Admin" defaultValue="DHAKA" />
         </div>

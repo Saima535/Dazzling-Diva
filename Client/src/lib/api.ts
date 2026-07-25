@@ -23,6 +23,20 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return payload.data;
 }
 
+export async function authedApiFetch<T>(
+  path: string,
+  token: string,
+  init?: RequestInit,
+): Promise<T> {
+  return apiFetch<T>(path, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(init?.headers ?? {}),
+    },
+  });
+}
+
 export type PublicCategory = {
   _id: string;
   name: string;
@@ -132,11 +146,23 @@ export async function createOrder(payload: {
   address: string;
   district: string;
   shippingMethodCode: string;
+  couponCode?: string;
   items: { productSlug: string; sku: string; quantity: number }[];
-}) {
+}, token?: string | null) {
   return apiFetch<{ orderNumber: string }>("/checkout/orders", {
     method: "POST",
     body: JSON.stringify(payload),
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+}
+
+export async function validateCoupon(code: string, subtotalMinor: number) {
+  return apiFetch<{
+    code: string;
+    discountMinor: number;
+  }>("/checkout/coupons/validate", {
+    method: "POST",
+    body: JSON.stringify({ code, subtotalMinor }),
   });
 }
 
@@ -148,4 +174,30 @@ export async function trackOrder(orderNumber: string) {
     paymentStatus: string;
     grandTotalMinor: number;
   }>(`/orders/track/${orderNumber}`);
+}
+
+export async function getCustomerMe(token: string) {
+  return authedApiFetch<{
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+  }>("/customers/me", token);
+}
+
+export async function getCustomerOrders(token: string) {
+  return authedApiFetch<
+    {
+      _id: string;
+      orderNumber: string;
+      createdAt: string;
+      orderStatus: string;
+      paymentStatus: string;
+      grandTotalMinor: number;
+    }[]
+  >("/customers/orders", token);
+}
+
+export async function getWishlist(token: string) {
+  return authedApiFetch<PublicProduct[]>("/customers/wishlist", token);
 }

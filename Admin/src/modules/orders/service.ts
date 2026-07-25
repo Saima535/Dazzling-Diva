@@ -3,9 +3,12 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { connectToDatabase } from "@/lib/db";
+import { recordAudit } from "@/lib/audit";
 import { ProductModel } from "@/models/product";
 import { OrderModel } from "@/models/order";
 import { ShippingMethodModel } from "@/models/shipping-method";
+import { validateCoupon } from "@/modules/coupons/service";
+import { InventoryMovementModel } from "@/models/inventory-movement";
 
 export const shippingInputSchema = z.object({
   name: z.string().min(2),
@@ -32,6 +35,9 @@ export const createOrderSchema = z.object({
       }),
     )
     .min(1),
+  customerId: z.string().optional(),
+  couponCode: z.string().optional(),
+  idempotencyKey: z.string().optional(),
 });
 
 export async function createShippingMethod(
@@ -39,15 +45,29 @@ export async function createShippingMethod(
 ) {
   const values = shippingInputSchema.parse(input);
   await connectToDatabase();
-  return ShippingMethodModel.create({
+  const method = await ShippingMethodModel.create({
     ...values,
     code: values.code.toUpperCase(),
   });
+  await recordAudit({
+    action: "shipping.created",
+    entityType: "shippingMethod",
+    entityId: String(method._id),
+    summary: method.code,
+  });
+  return method;
 }
 
 export async function createOrder(input: z.input<typeof createOrderSchema>) {
   const values = createOrderSchema.parse(input);
   await connectToDatabase();
+
+  if (values.idempotencyKey) {
+    const existing = await OrderModel.findOne({ idempotencyKey: values.idempotencyKey }).lean();
+    if (existing) {
+      return existing;
+    }
+  }
 
   const shippingMethod = await ShippingMethodModel.findOne({
     code: values.shippingMethodCode.toUpperCase(),
@@ -80,8 +100,19 @@ export async function createOrder(input: z.input<typeof createOrderSchema>) {
       throw new Error(`Only ${variant.stockQuantity} units remain for ${product.name}.`);
     }
 
+    const previousQuantity = variant.stockQuantity;
     variant.stockQuantity -= item.quantity;
     await product.save();
+    await InventoryMovementModel.create({
+      productId: String(product._id),
+      productName: String(product.name),
+      variantSku: variant.sku,
+      movementType: "order_placed",
+      quantityDelta: -item.quantity,
+      previousQuantity,
+      newQuantity: variant.stockQuantity,
+      reason: "Checkout placement",
+    });
 
     const lineTotalMinor = variant.priceMinor * item.quantity;
     subtotalMinor += lineTotalMinor;
@@ -97,11 +128,16 @@ export async function createOrder(input: z.input<typeof createOrderSchema>) {
   }
 
   const shippingMinor = shippingMethod.feeMinor;
-  const grandTotalMinor = subtotalMinor + shippingMinor;
+  const appliedCoupon = values.couponCode
+    ? await validateCoupon(values.couponCode, subtotalMinor)
+    : null;
+  const discountMinor = appliedCoupon?.discountMinor ?? 0;
+  const grandTotalMinor = subtotalMinor - discountMinor + shippingMinor;
   const orderNumber = `DD-${randomUUID().slice(0, 8).toUpperCase()}`;
 
-  return OrderModel.create({
+  const order = await OrderModel.create({
     orderNumber,
+    customerId: values.customerId,
     customerName: values.customerName,
     customerEmail: values.customerEmail,
     customerPhone: values.customerPhone,
@@ -109,7 +145,68 @@ export async function createOrder(input: z.input<typeof createOrderSchema>) {
     district: values.district,
     items: orderItems,
     subtotalMinor,
+    discountMinor,
     shippingMinor,
     grandTotalMinor,
+    couponCode: appliedCoupon?.coupon.code ?? "",
+    idempotencyKey: values.idempotencyKey ?? "",
   });
+
+  if (appliedCoupon?.coupon) {
+    appliedCoupon.coupon.usageCount += 1;
+    await appliedCoupon.coupon.save();
+  }
+
+  await recordAudit({
+    action: "order.created",
+    entityType: "order",
+    entityId: String(order._id),
+    summary: order.orderNumber,
+  });
+
+  return order;
+}
+
+export async function updateOrderStatus(
+  orderId: string,
+  status: "pending" | "confirmed" | "processing" | "packed" | "shipped" | "delivered" | "cancelled",
+) {
+  await connectToDatabase();
+  const order = await OrderModel.findById(orderId);
+  if (!order) {
+    throw new Error("Order not found.");
+  }
+
+  if (status === "cancelled" && order.orderStatus !== "cancelled") {
+    for (const item of order.items) {
+      const product = await ProductModel.findOne({ slug: item.productSlug });
+      const variant = product?.variants.find((entry) => entry.sku === item.variantSku);
+      if (product && variant) {
+        const previousQuantity = variant.stockQuantity;
+        variant.stockQuantity += item.quantity ?? 0;
+        await product.save();
+        await InventoryMovementModel.create({
+          productId: String(product._id),
+          productName: String(product.name),
+          variantSku: variant.sku,
+          movementType: "order_cancelled",
+          quantityDelta: item.quantity ?? 0,
+          previousQuantity,
+          newQuantity: variant.stockQuantity,
+          reason: "Order cancelled",
+          relatedOrderNumber: order.orderNumber,
+        });
+      }
+    }
+  }
+
+  order.orderStatus = status;
+  await order.save();
+  await recordAudit({
+    action: "order.status_updated",
+    entityType: "order",
+    entityId: String(order._id),
+    summary: `${order.orderNumber}:${status}`,
+  });
+  return order;
 }

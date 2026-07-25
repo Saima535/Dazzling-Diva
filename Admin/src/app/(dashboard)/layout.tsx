@@ -11,6 +11,12 @@ const nav = [
   ["Collections", "/dashboard/collections"],
   ["Homepage", "/dashboard/homepage"],
   ["Orders", "/dashboard/orders"],
+  ["Coupons", "/dashboard/coupons"],
+  ["Customers", "/dashboard/customers"],
+  ["Reviews", "/dashboard/reviews"],
+  ["Administrators", "/dashboard/administrators"],
+  ["Audit Logs", "/dashboard/audit-logs"],
+  ["Media", "/dashboard/media"],
   ["Settings", "/dashboard/settings"],
 ];
 

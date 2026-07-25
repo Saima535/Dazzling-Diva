@@ -5,6 +5,7 @@ import { formatMoney } from "@/src/lib/money";
 import type { PublicProduct } from "@/src/lib/api";
 
 import { AddToCartButton } from "./product-cart-button";
+import { WishlistButton } from "./wishlist-button";
 
 export function ProductCard({ product }: { product: PublicProduct }) {
   const price = product.variants[0]?.priceMinor ?? 0;
@@ -37,12 +38,15 @@ export function ProductCard({ product }: { product: PublicProduct }) {
         <p className="text-sm text-white/65">{product.shortDescription || "Ready for your next occasion."}</p>
         <div className="flex items-center justify-between gap-3">
           <span className="font-medium">{formatMoney(price)}</span>
-          <AddToCartButton
-            productSlug={product.slug}
-            sku={product.variants[0]?.sku ?? ""}
-            name={product.name}
-            priceMinor={price}
-          />
+          <div className="flex items-center gap-2">
+            <WishlistButton productId={product._id} />
+            <AddToCartButton
+              productSlug={product.slug}
+              sku={product.variants[0]?.sku ?? ""}
+              name={product.name}
+              priceMinor={price}
+            />
+          </div>
         </div>
       </div>
     </article>

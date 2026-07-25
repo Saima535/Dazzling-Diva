@@ -2,6 +2,7 @@ import { Types } from "mongoose";
 import { z } from "zod";
 
 import { connectToDatabase } from "@/lib/db";
+import { recordAudit } from "@/lib/audit";
 import { slugify } from "@/lib/slug";
 import { CategoryModel } from "@/models/category";
 import { CollectionModel } from "@/models/collection";
@@ -45,10 +46,17 @@ export const productInputSchema = z.object({
 export async function createCategory(input: z.input<typeof categoryInputSchema>) {
   const values = categoryInputSchema.parse(input);
   await connectToDatabase();
-  return CategoryModel.create({
+  const category = await CategoryModel.create({
     ...values,
     slug: slugify(values.name),
   });
+  await recordAudit({
+    action: "category.created",
+    entityType: "category",
+    entityId: String(category._id),
+    summary: category.name,
+  });
+  return category;
 }
 
 export async function createCollection(
@@ -56,16 +64,23 @@ export async function createCollection(
 ) {
   const values = collectionInputSchema.parse(input);
   await connectToDatabase();
-  return CollectionModel.create({
+  const collection = await CollectionModel.create({
     ...values,
     slug: slugify(values.name),
   });
+  await recordAudit({
+    action: "collection.created",
+    entityType: "collection",
+    entityId: String(collection._id),
+    summary: collection.name,
+  });
+  return collection;
 }
 
 export async function createProduct(input: z.input<typeof productInputSchema>) {
   const values = productInputSchema.parse(input);
   await connectToDatabase();
-  return ProductModel.create({
+  const product = await ProductModel.create({
     name: values.name,
     slug: slugify(values.name),
     shortDescription: values.shortDescription,
@@ -80,7 +95,7 @@ export async function createProduct(input: z.input<typeof productInputSchema>) {
     newArrival: values.newArrival,
     mostLoved: values.mostLoved,
     gallery: values.heroImageUrl
-      ? [{ url: values.heroImageUrl, alt: values.name }]
+      ? [{ url: String(values.heroImageUrl), alt: values.name }]
       : [],
     variants: [
       {
@@ -93,4 +108,11 @@ export async function createProduct(input: z.input<typeof productInputSchema>) {
       },
     ],
   });
+  await recordAudit({
+    action: "product.created",
+    entityType: "product",
+    entityId: String(product._id),
+    summary: String(product.name),
+  });
+  return product;
 }

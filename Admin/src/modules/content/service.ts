@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { recordAudit } from "@/lib/audit";
 import { connectToDatabase } from "@/lib/db";
 import { HomePageConfigModel } from "@/models/homepage-config";
 import { SiteSettingsModel } from "@/models/site-settings";
@@ -35,7 +36,7 @@ export const settingsInputSchema = z.object({
 export async function upsertHomepage(input: z.input<typeof homepageInputSchema>) {
   const values = homepageInputSchema.parse(input);
   await connectToDatabase();
-  return HomePageConfigModel.findOneAndUpdate(
+  const homepage = await HomePageConfigModel.findOneAndUpdate(
     {},
     {
       ...values,
@@ -45,14 +46,28 @@ export async function upsertHomepage(input: z.input<typeof homepageInputSchema>)
     },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
+  await recordAudit({
+    action: "homepage.updated",
+    entityType: "homepage",
+    entityId: String(homepage?._id ?? "homepage"),
+    summary: values.heroTitle,
+  });
+  return homepage;
 }
 
 export async function upsertSettings(input: z.input<typeof settingsInputSchema>) {
   const values = settingsInputSchema.parse(input);
   await connectToDatabase();
-  return SiteSettingsModel.findOneAndUpdate({}, values, {
+  const settings = await SiteSettingsModel.findOneAndUpdate({}, values, {
     upsert: true,
     new: true,
     setDefaultsOnInsert: true,
   });
+  await recordAudit({
+    action: "settings.updated",
+    entityType: "settings",
+    entityId: String(settings?._id ?? "settings"),
+    summary: values.storeName,
+  });
+  return settings;
 }

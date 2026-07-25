@@ -3,13 +3,20 @@
 import { revalidatePath } from "next/cache";
 
 import { clearAdminSession } from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
+import { deleteImageFromCloudinary, getCloudinaryFolder, uploadImageToCloudinary } from "@/lib/cloudinary";
+import { connectToDatabase } from "@/lib/db";
+import { MediaAssetModel } from "@/models/media-asset";
+import { createAdminUser } from "@/modules/admin-users/service";
 import {
   createCategory,
   createCollection,
   createProduct,
 } from "@/modules/catalog/service";
 import { upsertHomepage, upsertSettings } from "@/modules/content/service";
-import { createShippingMethod } from "@/modules/orders/service";
+import { createCoupon } from "@/modules/coupons/service";
+import { createShippingMethod, updateOrderStatus } from "@/modules/orders/service";
+import { setReviewStatus } from "@/modules/reviews/service";
 
 export async function logoutAction() {
   await clearAdminSession();
@@ -107,4 +114,111 @@ export async function createShippingMethodAction(formData: FormData) {
     enabled: formData.get("enabled") === "on",
   });
   revalidatePath("/dashboard/orders");
+}
+
+export async function createCouponAction(formData: FormData) {
+  await createCoupon({
+    code: String(formData.get("code") ?? ""),
+    type:
+      (formData.get("type") as "percentage" | "fixed" | null) ?? "fixed",
+    valueMinor: Number(formData.get("valueMinor") ?? 0),
+    minimumSubtotalMinor: Number(formData.get("minimumSubtotalMinor") ?? 0),
+    maxDiscountMinor: Number(formData.get("maxDiscountMinor") ?? 0),
+    active: formData.get("active") === "on",
+  });
+  revalidatePath("/dashboard/coupons");
+}
+
+export async function updateOrderStatusAction(formData: FormData) {
+  await updateOrderStatus(
+    String(formData.get("orderId") ?? ""),
+    String(formData.get("status") ?? "pending") as
+      | "pending"
+      | "confirmed"
+      | "processing"
+      | "packed"
+      | "shipped"
+      | "delivered"
+      | "cancelled",
+  );
+  revalidatePath("/dashboard/orders");
+}
+
+export async function createAdminUserAction(formData: FormData) {
+  await createAdminUser({
+    name: String(formData.get("name") ?? ""),
+    email: String(formData.get("email") ?? ""),
+    password: String(formData.get("password") ?? ""),
+    role: String(formData.get("role") ?? "support_manager") as
+      | "super_admin"
+      | "catalog_manager"
+      | "order_manager"
+      | "content_manager"
+      | "support_manager",
+  });
+  revalidatePath("/dashboard/administrators");
+}
+
+export async function updateReviewStatusAction(formData: FormData) {
+  await setReviewStatus(
+    String(formData.get("reviewId") ?? ""),
+    String(formData.get("status") ?? "approved") as "approved" | "rejected",
+  );
+  revalidatePath("/dashboard/reviews");
+}
+
+export async function uploadMediaAction(formData: FormData) {
+  const file = formData.get("file");
+  const folderKind =
+    (formData.get("folderKind") as
+      | "products"
+      | "categories"
+      | "collections"
+      | "home"
+      | "branding"
+      | null) ?? "products";
+  const altText = String(formData.get("altText") ?? "");
+
+  if (!(file instanceof File) || !file.size) {
+    throw new Error("A file is required.");
+  }
+
+  const uploaded = await uploadImageToCloudinary(file, getCloudinaryFolder(folderKind));
+  await connectToDatabase();
+  const asset = await MediaAssetModel.create({
+    publicId: uploaded.public_id,
+    secureUrl: uploaded.secure_url,
+    folder: getCloudinaryFolder(folderKind),
+    altText,
+    width: uploaded.width,
+    height: uploaded.height,
+    format: uploaded.format,
+    bytes: uploaded.bytes,
+  });
+  await recordAudit({
+    action: "media.uploaded",
+    entityType: "mediaAsset",
+    entityId: String(asset._id),
+    summary: asset.publicId,
+  });
+  revalidatePath("/dashboard/media");
+}
+
+export async function deleteMediaAction(formData: FormData) {
+  const assetId = String(formData.get("assetId") ?? "");
+  await connectToDatabase();
+  const asset = await MediaAssetModel.findById(assetId);
+  if (!asset) {
+    throw new Error("Media asset not found.");
+  }
+
+  await deleteImageFromCloudinary(asset.publicId);
+  await MediaAssetModel.findByIdAndDelete(assetId);
+  await recordAudit({
+    action: "media.deleted",
+    entityType: "mediaAsset",
+    entityId: assetId,
+    summary: asset.publicId,
+  });
+  revalidatePath("/dashboard/media");
 }
