@@ -1,0 +1,30 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+Admin/.env
+Client/.env.local
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Editor
+.vscode/
+.idea/
+
+# Generated assets
+uploads/
+tmp/
